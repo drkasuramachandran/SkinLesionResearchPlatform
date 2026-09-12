@@ -8,7 +8,8 @@ scikit-image
 scikit-learn
 matplotlib
 seaborn
-tensorflow
+tensorflow==2.15.1
 openpyxl
 h5py
 scipy
+roifile
