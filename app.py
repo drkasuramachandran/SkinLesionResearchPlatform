@@ -74,6 +74,151 @@ st.set_page_config(
 
 
 # ============================================================
+# VISUAL THEME
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+    /* Main application background */
+    .stApp {
+        background:
+            radial-gradient(circle at 15% 10%, rgba(20, 115, 125, 0.18), transparent 28%),
+            radial-gradient(circle at 85% 80%, rgba(15, 90, 105, 0.16), transparent 30%),
+            linear-gradient(135deg, #07181d 0%, #0a2228 48%, #07161b 100%);
+        color: #e8f4f5;
+    }
+
+    /* Main content */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+
+    /* Header */
+    [data-testid="stHeader"] {
+        background: rgba(0, 0, 0, 0);
+    }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background:
+            linear-gradient(180deg, #061419 0%, #0a2026 100%);
+        border-right: 1px solid rgba(92, 210, 215, 0.18);
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #dcebed;
+    }
+
+    /* Main headings */
+    h1, h2, h3 {
+        color: #f1fbfc !important;
+        letter-spacing: 0.2px;
+    }
+
+    h1 {
+        text-shadow: 0 0 18px rgba(80, 210, 215, 0.16);
+    }
+
+    /* Normal text */
+    p, li, label, .stMarkdown {
+        color: #d5e5e7;
+    }
+
+    /* Expanders */
+    [data-testid="stExpander"] {
+        background: rgba(8, 31, 37, 0.72);
+        border: 1px solid rgba(83, 193, 199, 0.20);
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16);
+    }
+
+    [data-testid="stExpander"] summary {
+        color: #e9f7f8;
+    }
+
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background: rgba(12, 42, 49, 0.72);
+        border: 1px solid rgba(83, 193, 199, 0.22);
+        border-radius: 12px;
+        padding: 0.8rem 1rem;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #a9c7ca !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: #f2ffff !important;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #167f87, #20a5a9);
+        color: white;
+        border: 1px solid rgba(150, 245, 245, 0.22);
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #1b9299, #29b7ba);
+        border-color: rgba(180, 255, 255, 0.45);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(20, 170, 175, 0.18);
+    }
+
+    /* File uploader */
+    [data-testid="stFileUploader"] {
+        background: rgba(8, 31, 37, 0.58);
+        border: 1px dashed rgba(92, 210, 215, 0.35);
+        border-radius: 12px;
+        padding: 0.35rem;
+    }
+
+    /* Info / success / warning / error boxes */
+    [data-testid="stAlert"] {
+        border-radius: 10px;
+    }
+
+    /* Dataframes */
+    [data-testid="stDataFrame"] {
+        border: 1px solid rgba(83, 193, 199, 0.18);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    /* Progress bar */
+    [data-testid="stProgress"] > div > div > div {
+        background: linear-gradient(90deg, #167f87, #35c4c4);
+    }
+
+    /* Dividers */
+    hr {
+        border-color: rgba(92, 210, 215, 0.16);
+    }
+
+    /* Links */
+    a {
+        color: #67d9dc !important;
+    }
+
+    /* Captions */
+    .stCaption, [data-testid="stCaptionContainer"] {
+        color: #91b1b5 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+
+# ============================================================
 # TITLE
 # ============================================================
 
