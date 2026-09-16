@@ -14,20 +14,22 @@ MODEL_PATH = BASE_DIR / "models" / "my_5layer_cnn.h5"
 
 def build_cnn_model():
     """
-    Reconstruct the original 5-layer CNN architecture.
+    Reconstruct the CNN architecture from the saved H5 model.
 
-    The architecture was recovered from the saved H5 model:
-        Input: 128 x 128 x 3
-        Conv2D: 32 filters
+    Input:
+        128 x 128 x 3
+
+    Architecture:
+        Conv2D 32
         MaxPooling2D
-        Conv2D: 64 filters
+        Conv2D 64
         MaxPooling2D
-        Conv2D: 128 filters
+        Conv2D 128
         MaxPooling2D
         Flatten
-        Dense: 128
-        Dropout: 0.5
-        Dense: 1 sigmoid
+        Dense 128
+        Dropout 0.5
+        Dense 1 sigmoid
     """
 
     model = models.Sequential([
@@ -36,67 +38,79 @@ def build_cnn_model():
         layers.Conv2D(
             32,
             (3, 3),
-            activation="relu"
+            activation="relu",
+            name="conv2d"
         ),
 
         layers.MaxPooling2D(
-            pool_size=(2, 2)
+            pool_size=(2, 2),
+            name="max_pooling2d"
         ),
 
         layers.Conv2D(
             64,
             (3, 3),
-            activation="relu"
+            activation="relu",
+            name="conv2d_1"
         ),
 
         layers.MaxPooling2D(
-            pool_size=(2, 2)
+            pool_size=(2, 2),
+            name="max_pooling2d_1"
         ),
 
         layers.Conv2D(
             128,
             (3, 3),
-            activation="relu"
+            activation="relu",
+            name="conv2d_2"
         ),
 
         layers.MaxPooling2D(
-            pool_size=(2, 2)
+            pool_size=(2, 2),
+            name="max_pooling2d_2"
         ),
 
-        layers.Flatten(),
+        layers.Flatten(
+            name="flatten"
+        ),
 
         layers.Dense(
             128,
-            activation="relu"
+            activation="relu",
+            name="dense"
         ),
 
-        layers.Dropout(0.5),
+        layers.Dropout(
+            0.5,
+            name="dropout"
+        ),
 
         layers.Dense(
             1,
-            activation="sigmoid"
+            activation="sigmoid",
+            name="dense_1"
         )
     ])
 
     return model
 
 
-def _read_dataset(h5_file, dataset_path):
-    """
-    Read a dataset from the legacy Keras H5 weight structure.
-    """
-    return np.array(h5_file[dataset_path])
+def _read_weight(h5_file, path):
+    """Read one weight dataset from the H5 file."""
+    return np.array(h5_file[path])
 
 
 def load_cnn_model():
     """
-    Load the CNN without using Keras H5 model deserialization.
+    Load the trained CNN.
 
-    The original H5 was saved using Keras 3.15.1, while the
-    Streamlit environment uses TensorFlow 2.15.1.
+    The H5 model was saved with Keras 3.15.1.
+    Streamlit currently uses TensorFlow 2.15.1.
 
-    Therefore, we reconstruct the architecture and load the
-    trained weights directly from the H5 file.
+    Therefore, we avoid Keras H5 model deserialization and
+    reconstruct the architecture before loading the trained
+    weights directly from the H5 file.
     """
 
     if not MODEL_PATH.exists():
@@ -106,107 +120,144 @@ def load_cnn_model():
 
     try:
         # ---------------------------------------------------------
-        # Build the exact original architecture
+        # Build model
         # ---------------------------------------------------------
         model = build_cnn_model()
 
         # ---------------------------------------------------------
-        # Read trained weights directly from H5
+        # Load trained weights directly from H5
         # ---------------------------------------------------------
         with h5py.File(MODEL_PATH, "r") as f:
 
-            required_weights = [
-                "conv2d/sequential/conv2d/kernel",
-                "conv2d/sequential/conv2d/bias",
+            # The actual H5 structure contains:
+            #
+            # model_weights/
+            #     conv2d/
+            #     conv2d_1/
+            #     conv2d_2/
+            #     dense/
+            #     dense_1/
 
-                "conv2d_1/sequential/conv2d_1/kernel",
-                "conv2d_1/sequential/conv2d_1/bias",
+            weight_paths = {
+                "conv2d_kernel":
+                    "model_weights/conv2d/sequential/conv2d/kernel",
 
-                "conv2d_2/sequential/conv2d_2/kernel",
-                "conv2d_2/sequential/conv2d_2/bias",
+                "conv2d_bias":
+                    "model_weights/conv2d/sequential/conv2d/bias",
 
-                "dense/sequential/dense/kernel",
-                "dense/sequential/dense/bias",
+                "conv2d_1_kernel":
+                    "model_weights/conv2d_1/sequential/conv2d_1/kernel",
 
-                "dense_1/sequential/dense_1/kernel",
-                "dense_1/sequential/dense_1/bias",
-            ]
+                "conv2d_1_bias":
+                    "model_weights/conv2d_1/sequential/conv2d_1/bias",
 
-            # Check that all required weights exist
-            missing = [
-                path for path in required_weights
-                if path not in f
-            ]
+                "conv2d_2_kernel":
+                    "model_weights/conv2d_2/sequential/conv2d_2/kernel",
+
+                "conv2d_2_bias":
+                    "model_weights/conv2d_2/sequential/conv2d_2/bias",
+
+                "dense_kernel":
+                    "model_weights/dense/sequential/dense/kernel",
+
+                "dense_bias":
+                    "model_weights/dense/sequential/dense/bias",
+
+                "dense_1_kernel":
+                    "model_weights/dense_1/sequential/dense_1/kernel",
+
+                "dense_1_bias":
+                    "model_weights/dense_1/sequential/dense_1/bias",
+            }
+
+            # -----------------------------------------------------
+            # Verify that every weight exists
+            # -----------------------------------------------------
+            missing = []
+
+            for name, path in weight_paths.items():
+                if path not in f:
+                    missing.append(path)
 
             if missing:
                 raise RuntimeError(
-                    "The following CNN weights are missing from "
-                    "the H5 file:\n"
+                    "The following CNN weights are missing "
+                    "from the H5 file:\n"
                     + "\n".join(missing)
                 )
 
             # -----------------------------------------------------
-            # Load weights layer by layer
+            # Conv2D 1
             # -----------------------------------------------------
-
-            model.layers[0].set_weights([
-                _read_dataset(
+            model.get_layer("conv2d").set_weights([
+                _read_weight(
                     f,
-                    "conv2d/sequential/conv2d/kernel"
+                    weight_paths["conv2d_kernel"]
                 ),
-                _read_dataset(
+                _read_weight(
                     f,
-                    "conv2d/sequential/conv2d/bias"
-                ),
-            ])
-
-            model.layers[2].set_weights([
-                _read_dataset(
-                    f,
-                    "conv2d_1/sequential/conv2d_1/kernel"
-                ),
-                _read_dataset(
-                    f,
-                    "conv2d_1/sequential/conv2d_1/bias"
+                    weight_paths["conv2d_bias"]
                 ),
             ])
 
-            model.layers[4].set_weights([
-                _read_dataset(
+            # -----------------------------------------------------
+            # Conv2D 2
+            # -----------------------------------------------------
+            model.get_layer("conv2d_1").set_weights([
+                _read_weight(
                     f,
-                    "conv2d_2/sequential/conv2d_2/kernel"
+                    weight_paths["conv2d_1_kernel"]
                 ),
-                _read_dataset(
+                _read_weight(
                     f,
-                    "conv2d_2/sequential/conv2d_2/bias"
-                ),
-            ])
-
-            model.layers[7].set_weights([
-                _read_dataset(
-                    f,
-                    "dense/sequential/dense/kernel"
-                ),
-                _read_dataset(
-                    f,
-                    "dense/sequential/dense/bias"
+                    weight_paths["conv2d_1_bias"]
                 ),
             ])
 
-            model.layers[9].set_weights([
-                _read_dataset(
+            # -----------------------------------------------------
+            # Conv2D 3
+            # -----------------------------------------------------
+            model.get_layer("conv2d_2").set_weights([
+                _read_weight(
                     f,
-                    "dense_1/sequential/dense_1/kernel"
+                    weight_paths["conv2d_2_kernel"]
                 ),
-                _read_dataset(
+                _read_weight(
                     f,
-                    "dense_1/sequential/dense_1/bias"
+                    weight_paths["conv2d_2_bias"]
+                ),
+            ])
+
+            # -----------------------------------------------------
+            # Dense 128
+            # -----------------------------------------------------
+            model.get_layer("dense").set_weights([
+                _read_weight(
+                    f,
+                    weight_paths["dense_kernel"]
+                ),
+                _read_weight(
+                    f,
+                    weight_paths["dense_bias"]
+                ),
+            ])
+
+            # -----------------------------------------------------
+            # Output Dense
+            # -----------------------------------------------------
+            model.get_layer("dense_1").set_weights([
+                _read_weight(
+                    f,
+                    weight_paths["dense_1_kernel"]
+                ),
+                _read_weight(
+                    f,
+                    weight_paths["dense_1_bias"]
                 ),
             ])
 
         # ---------------------------------------------------------
-        # Compile only for compatibility.
-        # Prediction does not require training.
+        # Compile for compatibility
         # ---------------------------------------------------------
         model.compile(
             optimizer="adam",
@@ -235,10 +286,10 @@ def predict_image(model, image):
         prediction: Benign or Malignant
     """
 
-    # Convert to RGB
+    # Convert image to RGB
     image = image.convert("RGB")
 
-    # Resize to model input size
+    # Resize to CNN input size
     image = image.resize(IMG_SIZE)
 
     # Convert to NumPy array
@@ -247,7 +298,7 @@ def predict_image(model, image):
         dtype=np.float32
     )
 
-    # Normalize exactly as used by the original model
+    # Normalize to 0-1
     image_array = image_array / 255.0
 
     # Add batch dimension
@@ -256,7 +307,7 @@ def predict_image(model, image):
         axis=0
     )
 
-    # Prediction
+    # Run prediction
     probability = float(
         model.predict(
             image_array,
@@ -275,7 +326,7 @@ def predict_image(model, image):
 
 def get_model_info(model):
     """
-    Return information displayed by the application.
+    Return model information for the Streamlit interface.
     """
 
     return {
@@ -290,8 +341,5 @@ def get_model_info(model):
 
 
 def print_model_summary(model):
-    """
-    Print CNN architecture.
-    """
-
+    """Print the CNN architecture."""
     model.summary()
