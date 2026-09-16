@@ -1,38 +1,102 @@
 import tensorflow as tf
+from tensorflow.keras import layers, models
 from pathlib import Path
 from PIL import Image
 import numpy as np
+import h5py
 
-
-# ============================================================
-# CNN CONFIGURATION
-# ============================================================
 
 IMG_SIZE = (128, 128)
 
-# Project root:
-# SkinLesionResearchPlatform/
-# ├── models/
-# │   └── my_5layer_cnn.h5
-# └── modules/
-#     └── cnn.py
-
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 MODEL_PATH = BASE_DIR / "models" / "my_5layer_cnn.h5"
 
 
-# ============================================================
-# LOAD TRAINED MODEL
-# ============================================================
+def build_cnn_model():
+    """
+    Reconstruct the original 5-layer CNN architecture.
+
+    The architecture was recovered from the saved H5 model:
+        Input: 128 x 128 x 3
+        Conv2D: 32 filters
+        MaxPooling2D
+        Conv2D: 64 filters
+        MaxPooling2D
+        Conv2D: 128 filters
+        MaxPooling2D
+        Flatten
+        Dense: 128
+        Dropout: 0.5
+        Dense: 1 sigmoid
+    """
+
+    model = models.Sequential([
+        layers.Input(shape=(128, 128, 3)),
+
+        layers.Conv2D(
+            32,
+            (3, 3),
+            activation="relu"
+        ),
+
+        layers.MaxPooling2D(
+            pool_size=(2, 2)
+        ),
+
+        layers.Conv2D(
+            64,
+            (3, 3),
+            activation="relu"
+        ),
+
+        layers.MaxPooling2D(
+            pool_size=(2, 2)
+        ),
+
+        layers.Conv2D(
+            128,
+            (3, 3),
+            activation="relu"
+        ),
+
+        layers.MaxPooling2D(
+            pool_size=(2, 2)
+        ),
+
+        layers.Flatten(),
+
+        layers.Dense(
+            128,
+            activation="relu"
+        ),
+
+        layers.Dropout(0.5),
+
+        layers.Dense(
+            1,
+            activation="sigmoid"
+        )
+    ])
+
+    return model
+
+
+def _read_dataset(h5_file, dataset_path):
+    """
+    Read a dataset from the legacy Keras H5 weight structure.
+    """
+    return np.array(h5_file[dataset_path])
+
 
 def load_cnn_model():
     """
-    Load the previously trained 5-layer CNN model.
+    Load the CNN without using Keras H5 model deserialization.
 
-    The model is loaded with compile=False because this
-    application only performs inference. This also avoids
-    unnecessary deserialization of optimizer/loss configuration.
+    The original H5 was saved using Keras 3.15.1, while the
+    Streamlit environment uses TensorFlow 2.15.1.
+
+    Therefore, we reconstruct the architecture and load the
+    trained weights directly from the H5 file.
     """
 
     if not MODEL_PATH.exists():
@@ -41,63 +105,149 @@ def load_cnn_model():
         )
 
     try:
-        model = tf.keras.models.load_model(
-            MODEL_PATH,
-            compile=False
+        # ---------------------------------------------------------
+        # Build the exact original architecture
+        # ---------------------------------------------------------
+        model = build_cnn_model()
+
+        # ---------------------------------------------------------
+        # Read trained weights directly from H5
+        # ---------------------------------------------------------
+        with h5py.File(MODEL_PATH, "r") as f:
+
+            required_weights = [
+                "conv2d/sequential/conv2d/kernel",
+                "conv2d/sequential/conv2d/bias",
+
+                "conv2d_1/sequential/conv2d_1/kernel",
+                "conv2d_1/sequential/conv2d_1/bias",
+
+                "conv2d_2/sequential/conv2d_2/kernel",
+                "conv2d_2/sequential/conv2d_2/bias",
+
+                "dense/sequential/dense/kernel",
+                "dense/sequential/dense/bias",
+
+                "dense_1/sequential/dense_1/kernel",
+                "dense_1/sequential/dense_1/bias",
+            ]
+
+            # Check that all required weights exist
+            missing = [
+                path for path in required_weights
+                if path not in f
+            ]
+
+            if missing:
+                raise RuntimeError(
+                    "The following CNN weights are missing from "
+                    "the H5 file:\n"
+                    + "\n".join(missing)
+                )
+
+            # -----------------------------------------------------
+            # Load weights layer by layer
+            # -----------------------------------------------------
+
+            model.layers[0].set_weights([
+                _read_dataset(
+                    f,
+                    "conv2d/sequential/conv2d/kernel"
+                ),
+                _read_dataset(
+                    f,
+                    "conv2d/sequential/conv2d/bias"
+                ),
+            ])
+
+            model.layers[2].set_weights([
+                _read_dataset(
+                    f,
+                    "conv2d_1/sequential/conv2d_1/kernel"
+                ),
+                _read_dataset(
+                    f,
+                    "conv2d_1/sequential/conv2d_1/bias"
+                ),
+            ])
+
+            model.layers[4].set_weights([
+                _read_dataset(
+                    f,
+                    "conv2d_2/sequential/conv2d_2/kernel"
+                ),
+                _read_dataset(
+                    f,
+                    "conv2d_2/sequential/conv2d_2/bias"
+                ),
+            ])
+
+            model.layers[7].set_weights([
+                _read_dataset(
+                    f,
+                    "dense/sequential/dense/kernel"
+                ),
+                _read_dataset(
+                    f,
+                    "dense/sequential/dense/bias"
+                ),
+            ])
+
+            model.layers[9].set_weights([
+                _read_dataset(
+                    f,
+                    "dense_1/sequential/dense_1/kernel"
+                ),
+                _read_dataset(
+                    f,
+                    "dense_1/sequential/dense_1/bias"
+                ),
+            ])
+
+        # ---------------------------------------------------------
+        # Compile only for compatibility.
+        # Prediction does not require training.
+        # ---------------------------------------------------------
+        model.compile(
+            optimizer="adam",
+            loss="binary_crossentropy",
+            metrics=["accuracy"]
         )
+
+        return model
 
     except Exception as e:
         raise RuntimeError(
             "Unable to load the CNN model.\n\n"
             f"Model: {MODEL_PATH}\n"
             f"TensorFlow version: {tf.__version__}\n\n"
-            "The saved H5 model may have been created with a "
-            "different Keras/TensorFlow version.\n\n"
-            f"Original error: {e}"
+            f"Original error: {str(e)}"
         ) from e
 
-    return model
-
-
-# ============================================================
-# CNN PREDICTION
-# ============================================================
 
 def predict_image(model, image):
     """
     Predict whether an uploaded skin lesion image
     is benign or malignant.
 
-    Parameters
-    ----------
-    model : TensorFlow model
-        Loaded CNN model.
-
-    image : PIL.Image
-        Uploaded image.
-
-    Returns
-    -------
-    probability : float
-        Malignant probability.
-
-    prediction : str
-        Benign or Malignant.
+    Returns:
+        probability: malignant probability
+        prediction: Benign or Malignant
     """
 
     # Convert to RGB
     image = image.convert("RGB")
 
-    # Resize to CNN input size
+    # Resize to model input size
     image = image.resize(IMG_SIZE)
 
-    # Convert image to NumPy array
+    # Convert to NumPy array
     image_array = np.array(
         image,
         dtype=np.float32
     )
 
-    # Normalize exactly as during training
+    # Normalize exactly as used by the original model
     image_array = image_array / 255.0
 
     # Add batch dimension
@@ -123,13 +273,9 @@ def predict_image(model, image):
     return probability, prediction
 
 
-# ============================================================
-# MODEL INFORMATION
-# ============================================================
-
 def get_model_info(model):
     """
-    Return basic information about the CNN model.
+    Return information displayed by the application.
     """
 
     return {
@@ -143,14 +289,9 @@ def get_model_info(model):
     }
 
 
-# ============================================================
-# OPTIONAL: DISPLAY MODEL SUMMARY
-# ============================================================
-
 def print_model_summary(model):
     """
-    Print the CNN architecture in the terminal.
+    Print CNN architecture.
     """
 
     model.summary()
-
